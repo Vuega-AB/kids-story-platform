@@ -15,5 +15,5 @@ export type Story = {
   ageGroup: '3-5' | '6-8' | '9-12';
   category: 'Adventure' | 'Fairy Tale' | 'Science' | 'Moral';
   pages: Page[];
-  createdAt: string;
+//   createdAt: string;
 };
