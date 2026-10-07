@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-// Dynamically import react-pageflip to ensure client-only rendering and bypass missing types
+// Dynamic import with ssr: false prevents build errors and SSR window crashes with react-pageflip
 const HTMLFlipBook = dynamic(() => import("react-pageflip"), {
   ssr: false,
 }) as any;
