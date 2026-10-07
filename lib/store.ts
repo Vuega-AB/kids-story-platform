@@ -5,6 +5,10 @@ import { supabase } from "./supabase";
 /* =========================================================
    MEMBERSHIP HELPERS
 ========================================================= */
+export async function isFavorite(storyId: string, userEmail?: string): Promise<boolean> {
+  const favorites = await getFavorites(userEmail);
+  return favorites.includes(storyId);
+}
 
 export function getMembershipStatus(email: string): MembershipStatus {
   const cleanEmail = email.trim().toLowerCase();

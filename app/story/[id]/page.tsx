@@ -6,6 +6,7 @@ import {
   getFavorites,
   toggleFavorite,
 } from "@/lib/store";
+import { Story } from "@/types/story";
 import { use, useEffect, useMemo, useRef, useState, forwardRef } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -51,7 +52,6 @@ function splitTextIntoPages(
   for (const sentenceRaw of sentenceMatches) {
     const sentence = sentenceRaw.trim();
     const limit = firstChunk ? maxFirstPageChars : maxContinuationChars;
-
     const candidate = currentChunk ? `${currentChunk} ${sentence}` : sentence;
 
     if (candidate.length <= limit) {
@@ -72,13 +72,11 @@ function splitTextIntoPages(
       continue;
     }
 
-    // Very long sentence: split safely by words
     const words = sentence.split(" ");
     let wordChunk = "";
 
     for (const word of words) {
       const candidateWord = wordChunk ? `${wordChunk} ${word}` : word;
-
       if (candidateWord.length <= newLimit) {
         wordChunk = candidateWord;
       } else {
@@ -293,7 +291,7 @@ const BackCover = forwardRef<HTMLDivElement>((_, ref) => {
 BackCover.displayName = "BackCover";
 
 /* -------------------------------------------------------
-   READER MAIN COMPONENT
+   READER MAIN
 ------------------------------------------------------- */
 
 export default function ReaderPage({
@@ -304,7 +302,7 @@ export default function ReaderPage({
   const router = useRouter();
   const { id } = use(params);
 
-  const [story, setStory] = useState<any>(null);
+  const [story, setStory] = useState<Story | null>(null);
   const [favorite, setFavorite] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -321,7 +319,7 @@ export default function ReaderPage({
   });
 
   /* -------------------------------------------------------
-     LOAD STORY & FAVORITE FROM SUPABASE CLOUD
+     LOAD STORY & FAVORITE ASYNC
   ------------------------------------------------------- */
 
   useEffect(() => {
@@ -477,10 +475,10 @@ export default function ReaderPage({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [router]);
 
   /* -------------------------------------------------------
-     TOUCH / SWIPE CONTROLS
+     TOUCH CONTROLS
   ------------------------------------------------------- */
 
   const touchStartX = useRef<number | null>(null);
@@ -549,7 +547,6 @@ export default function ReaderPage({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Favorite */}
           <button
             onClick={handleFavoriteToggle}
             aria-label="Favorite story"
@@ -562,7 +559,6 @@ export default function ReaderPage({
             />
           </button>
 
-          {/* Sound */}
           <button
             onClick={() => setSoundEnabled((v) => !v)}
             aria-label="Toggle sound"
@@ -571,7 +567,6 @@ export default function ReaderPage({
             {soundEnabled ? <Volume2 size={19} /> : <VolumeX size={19} />}
           </button>
 
-          {/* Close */}
           <Link href="/">
             <span
               aria-label="Close story"
@@ -616,15 +611,12 @@ export default function ReaderPage({
             disableFlipByClick={false}
             onFlip={(event: any) => {
               setCurrentPage(event.data);
-              // Save progress to Supabase Cloud
               saveReadingProgress(story.id, event.data, totalPages);
             }}
             className="story-book rounded-[20px] shadow-[0_30px_70px_rgba(0,0,0,0.40)]"
           >
-            {/* FRONT COVER */}
             <FrontCover story={story} />
 
-            {/* STORY PAGES */}
             {displayPages.map((page, index) => {
               const isLeft = index % 2 === 0;
 
@@ -641,7 +633,6 @@ export default function ReaderPage({
                   <div className="relative z-10 flex h-full min-h-0 flex-col p-4 pb-9 sm:p-5 md:p-6">
                     {page.imageUrl ? (
                       <>
-                        {/* IMAGE */}
                         <div className="relative h-[45%] min-h-[190px] w-full shrink-0 overflow-hidden rounded-[15px] border-[3px] border-white bg-[#eee7db] shadow-sm sm:h-[47%]">
                           <img
                             src={page.imageUrl}
@@ -654,12 +645,10 @@ export default function ReaderPage({
                           />
                         </div>
 
-                        {/* TEXT */}
                         <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-1 py-3">
                           <p className="max-w-[96%] text-center font-serif text-[14px] font-medium leading-[1.5] text-[#27364d] sm:text-[15px] md:text-[16px]">
                             {page.text}
                           </p>
-
                           <div className="mt-2.5 flex shrink-0 items-center gap-2">
                             <span className="h-[2px] w-5 rounded-full bg-purple-200" />
                             <span className="text-xs text-yellow-400">⭐</span>
@@ -668,7 +657,6 @@ export default function ReaderPage({
                         </div>
                       </>
                     ) : (
-                      /* TEXT CONTINUATION */
                       <div className="flex h-full min-h-0 flex-col items-center justify-center overflow-hidden px-4 py-6 text-center">
                         <div className="mb-5 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#fff2db] text-[#b4802c]">
                           <Sparkles size={23} />
@@ -687,12 +675,10 @@ export default function ReaderPage({
               );
             })}
 
-            {/* BACK COVER */}
             <BackCover />
           </HTMLFlipBook>
         </div>
 
-        {/* Desktop navigation buttons */}
         {!isMobile && (
           <>
             <button
