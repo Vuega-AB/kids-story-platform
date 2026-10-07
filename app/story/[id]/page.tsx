@@ -9,6 +9,7 @@ import {
 import { Story } from "@/types/story";
 import { use, useEffect, useMemo, useRef, useState, forwardRef } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   X,
   ChevronLeft,
@@ -22,7 +23,11 @@ import {
   BookOpen,
 } from "lucide-react";
 import Link from "next/link";
-import HTMLFlipBook from "react-pageflip";
+
+// Dynamically import react-pageflip to ensure client-only rendering and bypass missing types
+const HTMLFlipBook = dynamic(() => import("react-pageflip"), {
+  ssr: false,
+}) as any;
 
 type StoryPageProps = {
   children: React.ReactNode;
@@ -585,7 +590,6 @@ export default function ReaderPage({
         onTouchEnd={handleTouchEnd}
       >
         <div className="relative z-20 flex items-center justify-center">
-          {/* @ts-ignore */}
           <HTMLFlipBook
             ref={bookRef}
             width={bookSize.width}
