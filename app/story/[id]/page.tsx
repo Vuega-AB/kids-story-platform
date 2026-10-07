@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-// Dynamic import with ssr: false prevents build errors and SSR window crashes with react-pageflip
 const HTMLFlipBook = dynamic(() => import("react-pageflip"), {
   ssr: false,
 }) as any;
@@ -33,17 +32,12 @@ type StoryPageProps = {
   children: React.ReactNode;
 };
 
-/* -------------------------------------------------------
-   TEXT HELPERS
-------------------------------------------------------- */
-
 function splitTextIntoPages(
   text: string,
   maxFirstPageChars = 260,
   maxContinuationChars = 520
 ): string[] {
   const clean = text.trim().replace(/\s+/g, " ");
-
   if (!clean) return [""];
   if (clean.length <= maxFirstPageChars) return [clean];
 
@@ -103,69 +97,49 @@ function splitTextIntoPages(
   return chunks.length ? chunks : [clean];
 }
 
-/* -------------------------------------------------------
-   BACKGROUND DECORATIONS
-------------------------------------------------------- */
-
 function SpaceDecorations() {
   return (
     <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       <div className="absolute left-[7%] top-[15%] animate-pulse text-yellow-200/90">
         <Star size={22} fill="currentColor" />
       </div>
-
       <div className="absolute left-[16%] top-[32%] text-white/80">
         <Sparkles size={18} />
       </div>
-
       <div className="absolute bottom-[23%] left-[5%] animate-pulse text-yellow-300/90">
         <Star size={27} fill="currentColor" />
       </div>
-
       <div className="absolute bottom-[12%] left-[22%] text-purple-200/80">
         <Sparkles size={25} />
       </div>
-
       <div className="absolute right-[8%] top-[16%] animate-pulse text-yellow-200/90">
         <Star size={25} fill="currentColor" />
       </div>
-
       <div className="absolute right-[17%] top-[35%] text-white/80">
         <Sparkles size={19} />
       </div>
-
       <div className="absolute bottom-[22%] right-[6%] animate-pulse text-yellow-300/90">
         <Star size={30} fill="currentColor" />
       </div>
-
       <div className="absolute bottom-[11%] right-[23%] text-pink-200/70">
         <Sparkles size={21} />
       </div>
-
       <span className="absolute left-[12%] top-[55%] text-xl text-white/70">✦</span>
       <span className="absolute left-[27%] top-[18%] text-sm text-yellow-200/70">✦</span>
       <span className="absolute right-[28%] top-[20%] text-sm text-white/70">✦</span>
       <span className="absolute right-[12%] top-[55%] text-xl text-yellow-200/70">✦</span>
-
       <div className="absolute -left-10 top-[17%] h-24 w-24 rounded-full bg-gradient-to-br from-violet-300 via-purple-500 to-indigo-700 opacity-80 shadow-[0_0_35px_rgba(139,92,246,0.35)]">
         <div className="absolute -right-7 top-8 h-4 w-36 rotate-[-15deg] rounded-full border-[5px] border-pink-200/50" />
       </div>
-
       <div className="absolute -right-7 top-[26%] h-20 w-20 rounded-full bg-gradient-to-br from-yellow-200 via-orange-300 to-orange-500 opacity-80 shadow-[0_0_35px_rgba(251,191,36,0.30)]" />
-
       <div className="absolute bottom-[13%] left-[7%] hidden rotate-[-18deg] text-orange-300/80 sm:block">
         <Rocket size={48} strokeWidth={1.7} />
         <div className="absolute -bottom-7 left-4 h-8 w-4 rounded-b-full bg-gradient-to-b from-yellow-300 via-orange-400 to-transparent blur-[1px]" />
       </div>
-
       <div className="absolute left-1/2 top-1/2 h-[650px] w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-500/[0.08] blur-[100px]" />
     </div>
   );
 }
-
-/* -------------------------------------------------------
-   STORY BOOK PAGE
-------------------------------------------------------- */
 
 const StoryBookPage = forwardRef<HTMLDivElement, StoryPageProps>(
   ({ children }, ref) => {
@@ -181,12 +155,7 @@ const StoryBookPage = forwardRef<HTMLDivElement, StoryPageProps>(
     );
   }
 );
-
 StoryBookPage.displayName = "StoryBookPage";
-
-/* -------------------------------------------------------
-   FRONT COVER
-------------------------------------------------------- */
 
 const FrontCover = forwardRef<HTMLDivElement, { story: any }>(
   ({ story }, ref) => {
@@ -198,21 +167,17 @@ const FrontCover = forwardRef<HTMLDivElement, { story: any }>(
       >
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-pink-300/20 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-cyan-300/20 blur-3xl" />
-
         <div className="absolute left-8 top-8 text-yellow-200">✦</div>
         <div className="absolute right-10 top-12 text-yellow-100">⭐</div>
         <div className="absolute bottom-10 left-10 text-white/80">✨</div>
         <div className="absolute bottom-16 right-12 text-yellow-200">✦</div>
-
         <div className="absolute bottom-0 left-0 top-0 z-30 w-[14px] bg-gradient-to-r from-black/25 via-black/10 to-transparent" />
         <div className="pointer-events-none absolute inset-[12px] rounded-[14px] border-2 border-white/25" />
-
         <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 py-8">
           <div className="mb-4 flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-purple-100 backdrop-blur-sm">
             <Sparkles size={13} />
             {story.category || "Adventure"}
           </div>
-
           <div className="relative w-[80%] max-w-[340px] shrink-0 overflow-hidden rounded-[18px] border-[4px] border-white/70 bg-black/10 shadow-[0_15px_35px_rgba(0,0,0,0.30)]">
             <div className="aspect-[4/3]">
               {story.coverImage ? (
@@ -229,17 +194,14 @@ const FrontCover = forwardRef<HTMLDivElement, { story: any }>(
               )}
             </div>
           </div>
-
           <h1 className="mt-5 max-w-[90%] text-center text-2xl font-black leading-tight tracking-tight drop-shadow-[0_4px_5px_rgba(0,0,0,0.22)] sm:text-3xl">
             {story.title}
           </h1>
-
           <div className="mt-3 flex items-center gap-3 text-yellow-200">
             <span className="text-xs">✦</span>
             <span className="text-base">⭐</span>
             <span className="text-xs">✦</span>
           </div>
-
           <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.22em] text-purple-100">
             By {story.author || "Storyland"}
           </p>
@@ -248,12 +210,7 @@ const FrontCover = forwardRef<HTMLDivElement, { story: any }>(
     );
   }
 );
-
 FrontCover.displayName = "FrontCover";
-
-/* -------------------------------------------------------
-   BACK COVER
-------------------------------------------------------- */
 
 const BackCover = forwardRef<HTMLDivElement>((_, ref) => {
   return (
@@ -266,25 +223,20 @@ const BackCover = forwardRef<HTMLDivElement>((_, ref) => {
       <div className="absolute right-12 top-20 text-white/80">✨</div>
       <div className="absolute bottom-20 left-16 text-yellow-100">⭐</div>
       <div className="absolute bottom-12 right-10 text-purple-200">✦</div>
-
       <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-300/10 blur-3xl" />
       <div className="absolute bottom-0 right-0 top-0 z-20 w-[14px] bg-gradient-to-l from-black/25 via-black/10 to-transparent" />
-
       <div className="relative z-10 flex h-full flex-col items-center justify-center">
         <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-yellow-200 via-orange-300 to-orange-500 shadow-[0_0_45px_rgba(251,191,36,0.25)]">
           <Star size={28} fill="currentColor" className="text-white/80" />
         </div>
-
         <p className="mt-6 text-2xl font-black tracking-tight text-white sm:text-3xl">
           The End!
         </p>
-
         <div className="mt-3 flex gap-2 text-yellow-200">
           <span>✦</span>
           <span>⭐</span>
           <span>✦</span>
         </div>
-
         <p className="mt-4 text-xs font-semibold text-purple-100/70">
           Until the next adventure...
         </p>
@@ -292,12 +244,7 @@ const BackCover = forwardRef<HTMLDivElement>((_, ref) => {
     </div>
   );
 });
-
 BackCover.displayName = "BackCover";
-
-/* -------------------------------------------------------
-   READER MAIN
-------------------------------------------------------- */
 
 export default function ReaderPage({
   params,
@@ -323,10 +270,6 @@ export default function ReaderPage({
     height: 680,
   });
 
-  /* -------------------------------------------------------
-     LOAD STORY & FAVORITE ASYNC
-  ------------------------------------------------------- */
-
   useEffect(() => {
     async function loadStory() {
       setLoading(true);
@@ -347,10 +290,6 @@ export default function ReaderPage({
 
     loadStory();
   }, [id]);
-
-  /* -------------------------------------------------------
-     PREPARE PAGES
-  ------------------------------------------------------- */
 
   const displayPages = useMemo(() => {
     if (!story?.pages || !Array.isArray(story.pages)) {
@@ -386,10 +325,6 @@ export default function ReaderPage({
 
     return pagesList;
   }, [story]);
-
-  /* -------------------------------------------------------
-     RESPONSIVE BOOK SIZE
-  ------------------------------------------------------- */
 
   useEffect(() => {
     const updateSize = () => {
@@ -433,10 +368,6 @@ export default function ReaderPage({
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
-  /* -------------------------------------------------------
-     SOUND & NAVIGATION
-  ------------------------------------------------------- */
-
   const playPageSound = () => {
     if (!soundEnabled) return;
     try {
@@ -467,10 +398,6 @@ export default function ReaderPage({
     setFavorite(isNowFav);
   };
 
-  /* -------------------------------------------------------
-     KEYBOARD CONTROLS
-  ------------------------------------------------------- */
-
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "ArrowRight") nextPage();
@@ -481,10 +408,6 @@ export default function ReaderPage({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [router]);
-
-  /* -------------------------------------------------------
-     TOUCH CONTROLS
-  ------------------------------------------------------- */
 
   const touchStartX = useRef<number | null>(null);
 
@@ -542,7 +465,6 @@ export default function ReaderPage({
     <main className="fixed inset-0 z-[100] flex select-none flex-col overflow-hidden bg-gradient-to-b from-[#161044] via-[#21175c] to-[#110d35]">
       <SpaceDecorations />
 
-      {/* HEADER */}
       <header className="absolute left-0 right-0 top-0 z-[200] flex items-center justify-between px-4 py-4 sm:px-7 sm:py-5">
         <div className="flex max-w-[65%] items-center gap-3 rounded-full border-2 border-white/15 bg-[#31266f]/75 px-4 py-2.5 text-white shadow-[0_8px_25px_rgba(0,0,0,0.20)] backdrop-blur-md">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-yellow-300 text-purple-900 shadow-sm">
@@ -583,7 +505,6 @@ export default function ReaderPage({
         </div>
       </header>
 
-      {/* BOOK AREA */}
       <div
         className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-3 pb-20 pt-20"
         onTouchStart={handleTouchStart}
@@ -714,7 +635,6 @@ export default function ReaderPage({
         )}
       </div>
 
-      {/* BOTTOM PROGRESS BAR */}
       <div className="absolute bottom-4 left-1/2 z-[200] flex -translate-x-1/2 items-center gap-3 sm:bottom-5 sm:gap-5">
         <button
           onClick={previousPage}
