@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   createStory,
   getCurrentParent,
@@ -19,6 +19,7 @@ import {
   Check,
   Lightbulb,
   Rocket,
+  Coins,
 } from "lucide-react";
 
 type AgeGroup = "3-5" | "6-8" | "9-12";
@@ -102,6 +103,7 @@ export default function CreateStoryPage() {
 
   const [parent, setParent] = useState<any>(null);
   const [checkingMembership, setCheckingMembership] = useState(true);
+  const [credits, setCredits] = useState<number>(0);
 
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
@@ -121,10 +123,6 @@ export default function CreateStoryPage() {
   const [error, setError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
 
-  /* =====================================================
-     MEMBERSHIP CHECK (SUPABASE ASYNC)
-  ===================================================== */
-
   useEffect(() => {
     async function checkAuth() {
       const current = await getCurrentParent();
@@ -133,23 +131,17 @@ export default function CreateStoryPage() {
         return;
       }
       setParent(current);
+      setCredits(current.credits ?? 0);
       setCheckingMembership(false);
     }
     checkAuth();
   }, [router]);
 
-  /* =====================================================
-     GENERATE STORY
-  ===================================================== */
-
   const generateStory = async () => {
-    if (!parent || isGenerating) {
-      return;
-    }
+    if (!parent || isGenerating) return;
 
-    const current = await getCurrentParent();
-    if (!current || !isMember(current)) {
-      router.replace("/parents");
+    if (credits <= 0) {
+      setError("You have 0 Magic Sparks left! Visit the Parents Dashboard to refill credits.");
       return;
     }
 
@@ -169,11 +161,9 @@ export default function CreateStoryPage() {
     try {
       const response = await fetch("/api/generate-story", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: current.email,
+          email: parent.email,
           idea: cleanIdea,
           title: cleanTitle,
           ageGroup,
@@ -190,9 +180,13 @@ export default function CreateStoryPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data?.error || "Something went wrong while creating the story."
-        );
+        throw new Error(data?.error || "Something went wrong while creating the story.");
+      }
+
+      if (typeof data.remainingCredits === "number") {
+        setCredits(data.remainingCredits);
+      } else {
+        setCredits((prev) => Math.max(0, prev - 1));
       }
 
       if (!data?.story?.title || !Array.isArray(data.story.pages)) {
@@ -208,14 +202,8 @@ export default function CreateStoryPage() {
         }))
         .filter((page: StoryPage) => page.text.length > 0);
 
-      if (!pages.length) {
-        throw new Error("The AI did not generate any story pages.");
-      }
-
       const story: GeneratedStory = {
-        title:
-          cleanTitle ||
-          cleanText(String(data.story.title)),
+        title: cleanTitle || cleanText(String(data.story.title)),
         description:
           cleanText(String(data.story.description || "")) ||
           `A magical ${category.toLowerCase()} adventure for ages ${ageGroup}.`,
@@ -225,11 +213,7 @@ export default function CreateStoryPage() {
       setGeneratedStory(story);
     } catch (err: any) {
       console.error("Story generation error:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "We couldn't create the story. Please try again."
-      );
+      setError(err instanceof Error ? err.message : "We couldn't create the story. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -240,20 +224,8 @@ export default function CreateStoryPage() {
     generateStory();
   };
 
-  /* =====================================================
-     SAVE STORY TO SUPABASE CLOUD
-  ===================================================== */
-
   const saveGeneratedStory = async () => {
-    if (!generatedStory || !parent || isSaving || created) {
-      return;
-    }
-
-    const current = await getCurrentParent();
-    if (!current || !isMember(current)) {
-      router.replace("/parents");
-      return;
-    }
+    if (!generatedStory || !parent || isSaving || created) return;
 
     setIsSaving(true);
     setSaveMessage("");
@@ -264,7 +236,7 @@ export default function CreateStoryPage() {
         title: generatedStory.title,
         description: generatedStory.description,
         coverImage: generatedStory.pages[0]?.imageUrl || "",
-        author: parent.name || "Storyland Parent",
+        author: parent.name || "Storyland Explorer",
         ageGroup,
         category,
         likes: 0,
@@ -323,13 +295,24 @@ export default function CreateStoryPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#8ed8f8] via-[#e8f9ff] to-[#ffeaf3] px-5 py-10 pb-32">
       <div className="mx-auto max-w-4xl">
-        <Link
-          href="/"
-          className="mb-6 inline-flex items-center gap-2 font-black text-[#405474]"
-        >
-          <ArrowLeft size={20} />
-          Back to Storyland
-        </Link>
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 font-black text-[#405474]"
+          >
+            <ArrowLeft size={20} />
+            Back to Storyland
+          </Link>
+
+          {/* CREDITS DISPLAY BADGE */}
+          <Link
+            href="/parents"
+            className="flex items-center gap-2 rounded-2xl border-2 border-amber-300 bg-amber-100 px-4 py-2 text-sm font-black text-amber-900 shadow-sm transition hover:scale-105"
+          >
+            <Coins size={18} className="text-amber-600" />
+            <span>{credits} Magic Sparks Left</span>
+          </Link>
+        </div>
 
         <div className="overflow-hidden rounded-[35px] border-4 border-white bg-white/95 shadow-[0_15px_0_rgba(60,70,100,0.10)]">
           {!created ? (
@@ -345,13 +328,28 @@ export default function CreateStoryPage() {
                 <p className="mx-auto mt-3 max-w-xl font-semibold text-white/90">
                   Hello {parent.name}! Give us an idea and Storyland will turn it into a complete adventure with AI.
                 </p>
-                <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-xs font-black uppercase tracking-[0.15em] text-white backdrop-blur">
-                  <Check size={14} />
-                  Storyland Member
+                <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-2 text-xs font-black uppercase tracking-[0.15em] text-white backdrop-blur">
+                  <Coins size={14} className="text-yellow-200" />
+                  Costs 1 Spark (You have {credits})
                 </div>
               </div>
 
               <div className="space-y-7 p-7 sm:p-10">
+                {credits <= 0 && (
+                  <div className="flex flex-col items-center justify-between gap-4 rounded-3xl border-2 border-amber-300 bg-amber-50 p-6 text-amber-900 sm:flex-row">
+                    <div>
+                      <h4 className="font-black text-lg">You ran out of Magic Sparks! 🪄</h4>
+                      <p className="text-sm font-semibold">You need 1 spark to dream up a new story.</p>
+                    </div>
+                    <Link
+                      href="/parents"
+                      className="rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-white shadow-md hover:bg-amber-600"
+                    >
+                      Get More Credits →
+                    </Link>
+                  </div>
+                )}
+
                 {/* IDEA */}
                 <div>
                   <label className="mb-2 block font-black text-[#53617e]">
@@ -361,12 +359,12 @@ export default function CreateStoryPage() {
                     value={idea}
                     onChange={(e) => setIdea(e.target.value)}
                     rows={4}
-                    placeholder="Example: A little dragon gets lost in a magical forest and meets a lonely moon..."
+                    placeholder="Example: A little dragon gets lost in a magical candy forest and meets a singing marshmallow..."
                     className="w-full resize-none rounded-2xl border-2 border-[#e6eaf0] px-5 py-4 leading-relaxed outline-none transition focus:border-[#9b7bea] focus:ring-4 focus:ring-purple-100"
                   />
                   <div className="mt-2 flex items-start gap-2 text-xs font-bold text-[#9aa2b1]">
                     <Lightbulb size={15} className="mt-0.5 shrink-0" />
-                    You don't need to write the story. Just give Storyland a simple idea!
+                    You don't need to write the whole book. Just give Storyland an idea!
                   </div>
                 </div>
 
@@ -381,9 +379,9 @@ export default function CreateStoryPage() {
                       onChange={(e) => setAgeGroup(e.target.value as AgeGroup)}
                       className="w-full rounded-2xl border-2 border-[#e6eaf0] bg-white px-5 py-4 font-bold outline-none focus:border-[#9b7bea]"
                     >
-                      <option value="3-5">3–5 years</option>
-                      <option value="6-8">6–8 years</option>
-                      <option value="9-12">9–12 years</option>
+                      <option value="3-5">3–5 years (Picture heavy, simple)</option>
+                      <option value="6-8">6–8 years (Exciting & fun)</option>
+                      <option value="9-12">9–12 years (Epic adventure & mystery)</option>
                     </select>
                   </div>
 
@@ -499,16 +497,14 @@ export default function CreateStoryPage() {
                   />
                 </div>
 
-                {/* ERROR */}
                 {error && (
                   <div className="rounded-2xl border-2 border-red-100 bg-red-50 p-4 text-sm font-bold text-red-600">
                     ⚠️ {error}
                   </div>
                 )}
 
-                {/* SAVE MESSAGE */}
                 {saveMessage && (
-                  <div className="rounded-2xl border-2 border-green-100 bg-green-50 p-4 text-sm font-bold text-green-700 flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-2xl border-2 border-green-100 bg-green-50 p-4 text-sm font-bold text-green-700">
                     <Check size={18} />
                     {saveMessage}
                   </div>
@@ -518,18 +514,18 @@ export default function CreateStoryPage() {
                 {!generatedStory ? (
                   <button
                     onClick={generateStory}
-                    disabled={isGenerating}
-                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#9b7bea] to-[#ff7184] py-5 text-lg font-black text-white shadow-[0_6px_0_rgba(90,60,150,0.20)] transition hover:-translate-y-0.5 disabled:opacity-60"
+                    disabled={isGenerating || credits <= 0}
+                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#9b7bea] to-[#ff7184] py-5 text-lg font-black text-white shadow-[0_6px_0_rgba(90,60,150,0.20)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isGenerating ? (
                       <>
                         <RefreshCw size={23} className="animate-spin" />
-                        DREAMING UP YOUR STORY...
+                        DREAMING UP YOUR STORY (DRAWING 6-8 PAGES)...
                       </>
                     ) : (
                       <>
                         <Sparkles size={23} />
-                        GENERATE MY STORY ✨
+                        GENERATE MY STORY (1 SPARK) ✨
                       </>
                     )}
                   </button>
@@ -600,11 +596,11 @@ export default function CreateStoryPage() {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <button
                         onClick={regenerateStory}
-                        disabled={isGenerating || isSaving}
+                        disabled={isGenerating || isSaving || credits <= 0}
                         className="flex items-center justify-center gap-2 rounded-2xl border-2 border-[#9b7bea] bg-white py-4 font-black text-[#765bd0] transition hover:bg-purple-50 disabled:opacity-50"
                       >
                         <RefreshCw size={19} className={isGenerating ? "animate-spin" : ""} />
-                        TRY ANOTHER VERSION
+                        TRY ANOTHER VERSION (1 SPARK)
                       </button>
 
                       <button
@@ -642,14 +638,13 @@ export default function CreateStoryPage() {
               </div>
             </>
           ) : (
-            /* STORY SAVED SCREEN */
             <div className="px-7 py-16 text-center sm:px-10">
               <div className="text-7xl">🎉</div>
               <h1 className="mt-5 text-4xl font-black text-[#3d4661]">
                 Story Created & Saved in Cloud!
               </h1>
               <p className="mx-auto mt-4 max-w-md font-semibold leading-relaxed text-[#7a8398]">
-                Your magical AI adventure has been saved to your Supabase database.
+                Your magical AI adventure is published in your Supabase database. You have <b>{credits} Magic Sparks</b> left.
               </p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <button

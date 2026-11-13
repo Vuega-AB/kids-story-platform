@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python / local dumps
+/venv/
+/.venv/
+all_codes_combined.txt
+lol.py

@@ -23,12 +23,8 @@ export type Parent = {
   id: string;
   name: string;
   email: string;
-  password: string;
+  password?: string;
   verified: boolean;
-
-  /**
-   * @vuega.se accounts are automatically members.
-   * All other verified accounts are placed on the waiting list.
-   */
   membershipStatus: MembershipStatus;
+  credits: number;
 };

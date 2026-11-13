@@ -407,7 +407,7 @@ export default function ReaderPage({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [router]);
+  }, [router, soundEnabled]);
 
   const touchStartX = useRef<number | null>(null);
 

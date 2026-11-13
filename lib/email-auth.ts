@@ -1,50 +1,75 @@
+import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { supabaseAdmin } from "./supabase";
 
-type OtpRecord = {
-  code: string;
-  expiresAt: number;
-};
-
-// Global in-memory storage for 6-digit codes (10 minute expiry)
-const globalForOtp = global as unknown as { otpStore?: Map<string, OtpRecord> };
-const otpStore = globalForOtp.otpStore || new Map<string, OtpRecord>();
-if (process.env.NODE_ENV !== "production") globalForOtp.otpStore = otpStore;
+const smtpPort = Number(process.env.SMTP_PORT) || 465;
+const smtpSecure =
+  process.env.SMTP_SECURE !== undefined
+    ? process.env.SMTP_SECURE === "true"
+    : smtpPort === 465;
 
 export const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT) || 465,
-  secure: process.env.SMTP_SECURE === "true" || true,
+  port: smtpPort,
+  secure: smtpSecure,
   auth: {
-    user: process.env.SMTP_USER || "businessforyou1990@gmail.com",
+    user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
 
-export function generateAndStoreOtp(email: string): string {
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // valid for 10 minutes
+export async function generateAndStoreOtp(email: string): Promise<string> {
+  const code = crypto.randomInt(100000, 1000000).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
-  otpStore.set(email.toLowerCase().trim(), { code, expiresAt });
+  await supabaseAdmin.from("otp_codes").upsert(
+    { email: email.toLowerCase().trim(), code, expires_at: expiresAt },
+    { onConflict: "email" }
+  );
+
   return code;
 }
 
-export function verifyStoredOtp(email: string, code: string): { success: boolean; message: string } {
+export async function verifyStoredOtp(
+  email: string,
+  code: string
+): Promise<{ success: boolean; message: string }> {
   const normalizedEmail = email.toLowerCase().trim();
-  const record = otpStore.get(normalizedEmail);
 
-  if (!record) {
-    return { success: false, message: "Verification code expired or not requested. Please request a new code." };
+  const { data, error } = await supabaseAdmin
+    .from("otp_codes")
+    .select("*")
+    .eq("email", normalizedEmail)
+    .maybeSingle();
+
+  if (error || !data) {
+    return {
+      success: false,
+      message: "Verification code expired or not requested. Please request a new code.",
+    };
   }
 
-  if (Date.now() > record.expiresAt) {
-    otpStore.delete(normalizedEmail);
-    return { success: false, message: "Verification code has expired. Please try again." };
+  if (Date.now() > Number(data.expires_at)) {
+    await supabaseAdmin.from("otp_codes").delete().eq("email", normalizedEmail);
+    return {
+      success: false,
+      message: "Verification code has expired. Please try again.",
+    };
   }
 
-  if (record.code !== code.trim()) {
-    return { success: false, message: "Incorrect verification code. Please check your inbox." };
+  const storedCode = String(data.code || "").trim();
+  const inputCode = code.trim();
+  const a = Buffer.from(storedCode, "utf8");
+  const b = Buffer.from(inputCode, "utf8");
+
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return {
+      success: false,
+      message: "Incorrect verification code. Please check your inbox.",
+    };
   }
 
-  otpStore.delete(normalizedEmail);
+  // Code is valid: remove it so it cannot be reused
+  await supabaseAdmin.from("otp_codes").delete().eq("email", normalizedEmail);
   return { success: true, message: "Email verified successfully!" };
 }

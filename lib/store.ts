@@ -1,38 +1,12 @@
-import { Parent, Story, MembershipStatus } from "@/types/story";
-import { MOCK_STORIES } from "./mock-data";
+import { Parent, Story } from "@/types/story";
 import { supabase } from "./supabase";
 
 /* =========================================================
-   MEMBERSHIP HELPERS
+   MEMBERSHIP & SESSION HELPERS
 ========================================================= */
-export async function isFavorite(storyId: string, userEmail?: string): Promise<boolean> {
-  const favorites = await getFavorites(userEmail);
-  return favorites.includes(storyId);
-}
-
-export function getMembershipStatus(email: string): MembershipStatus {
-  const cleanEmail = email.trim().toLowerCase();
-  if (cleanEmail.endsWith("@vuega.se")) {
-    return "member";
-  }
-  return "waiting";
-}
-
 export function isMember(parent: Parent | null): boolean {
-  return Boolean(
-    parent && parent.verified && parent.membershipStatus === "member"
-  );
+  return Boolean(parent && parent.verified);
 }
-
-export function isWaiting(parent: Parent | null): boolean {
-  return Boolean(
-    parent && parent.verified && parent.membershipStatus === "waiting"
-  );
-}
-
-/* =========================================================
-   SESSION (COOKIES BASED - NO LOCALSTORAGE)
-========================================================= */
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -51,10 +25,41 @@ function deleteCookie(name: string) {
   document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
 }
 
+function getGuestIdentifier(): string {
+  if (typeof window === "undefined") return "guest@storyland.com";
+  try {
+    const key = "storyland_guest_id";
+    let guestId = window.localStorage.getItem(key);
+    if (!guestId) {
+      guestId = `guest_${crypto.randomUUID()}@storyland.local`;
+      window.localStorage.setItem(key, guestId);
+    }
+    return guestId;
+  } catch {
+    return "guest@storyland.com";
+  }
+}
+
+function resolveUserEmail(userEmail?: string): string {
+  const email = userEmail || getCookie("storyland_user_email");
+  return email ? email.toLowerCase().trim() : getGuestIdentifier();
+}
+
 export async function getCurrentParent(): Promise<Parent | null> {
-  const email = getCookie("storyland_user_email");
-  if (!email) return null;
-  return await getParentByEmail(email);
+  try {
+    const res = await fetch("/api/auth/me", { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const parent = (data?.parent as Parent | null) ?? null;
+    if (parent?.email) {
+      setCookie("storyland_user_email", parent.email.toLowerCase().trim());
+    } else {
+      deleteCookie("storyland_user_email");
+    }
+    return parent;
+  } catch {
+    return null;
+  }
 }
 
 export function setCurrentParentSession(parent: Parent | null) {
@@ -62,75 +67,15 @@ export function setCurrentParentSession(parent: Parent | null) {
     setCookie("storyland_user_email", parent.email.toLowerCase().trim());
   } else {
     deleteCookie("storyland_user_email");
+    if (typeof window !== "undefined") {
+      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    }
   }
 }
 
 /* =========================================================
-   PARENTS / AUTH (SUPABASE)
+   STORIES
 ========================================================= */
-
-export async function getParentByEmail(email: string): Promise<Parent | null> {
-  try {
-    const { data, error } = await supabase
-      .from("parents")
-      .select("*")
-      .eq("email", email.toLowerCase().trim())
-      .maybeSingle();
-
-    if (error || !data) return null;
-
-    return {
-      id: data.id,
-      name: data.name,
-      email: data.email,
-      password: data.password,
-      verified: data.verified,
-      membershipStatus: data.membership_status as MembershipStatus,
-    };
-  } catch {
-    return null;
-  }
-}
-
-export async function saveParentToCloud(parent: Parent): Promise<Parent | null> {
-  try {
-    const { data, error } = await supabase
-      .from("parents")
-      .upsert(
-        [
-          {
-            id: parent.id || undefined,
-            name: parent.name,
-            email: parent.email.toLowerCase().trim(),
-            password: parent.password,
-            verified: parent.verified,
-            membership_status: parent.membershipStatus,
-          },
-        ],
-        { onConflict: "email" }
-      )
-      .select()
-      .single();
-
-    if (error) throw error;
-    return {
-      id: data.id,
-      name: data.name,
-      email: data.email,
-      password: data.password,
-      verified: data.verified,
-      membershipStatus: data.membership_status,
-    };
-  } catch (err) {
-    console.error("Supabase parent save error:", err);
-    return null;
-  }
-}
-
-/* =========================================================
-   STORIES (SUPABASE)
-========================================================= */
-
 export async function getStories(): Promise<Story[]> {
   try {
     const { data, error } = await supabase
@@ -140,7 +85,7 @@ export async function getStories(): Promise<Story[]> {
 
     if (error) throw error;
 
-    const cloudStories: Story[] = (data || []).map((item) => ({
+    return (data || []).map((item) => ({
       id: item.id,
       title: item.title,
       description: item.description,
@@ -151,19 +96,9 @@ export async function getStories(): Promise<Story[]> {
       likes: item.likes || 0,
       pages: item.pages || [],
     }));
-
-    // Seed mock stories if database is completely empty
-    if (cloudStories.length === 0) {
-      for (const mock of MOCK_STORIES) {
-        await createStory(mock);
-      }
-      return MOCK_STORIES;
-    }
-
-    return cloudStories;
   } catch (err) {
     console.error("Fetch stories error:", err);
-    return MOCK_STORIES;
+    return [];
   }
 }
 
@@ -210,6 +145,8 @@ export async function createStory(story: Story): Promise<boolean> {
     ]);
 
     if (error) throw error;
+
+    await recordUserAchievement("story-creator");
     return true;
   } catch (err) {
     console.error("Supabase story creation error:", err);
@@ -218,26 +155,27 @@ export async function createStory(story: Story): Promise<boolean> {
 }
 
 /* =========================================================
-   LIKES (SUPABASE)
+   LIKES & FAVORITES
 ========================================================= */
-
 export async function getLikedStories(userEmail?: string): Promise<string[]> {
-  if (!userEmail) return [];
+  const email = resolveUserEmail(userEmail);
   try {
     const { data } = await supabase
       .from("user_likes")
       .select("story_id")
-      .eq("user_email", userEmail.toLowerCase().trim());
+      .eq("user_email", email);
     return (data || []).map((row) => row.story_id);
   } catch {
     return [];
   }
 }
 
-export async function toggleLike(storyId: string, userEmail?: string): Promise<{ liked: boolean; totalLikes: number }> {
-  const email = userEmail || getCookie("storyland_user_email") || "guest@storyland.com";
+export async function toggleLike(
+  storyId: string,
+  userEmail?: string
+): Promise<{ liked: boolean; totalLikes: number }> {
+  const email = resolveUserEmail(userEmail);
   try {
-    // Check if already liked
     const { data: existing } = await supabase
       .from("user_likes")
       .select("id")
@@ -249,11 +187,9 @@ export async function toggleLike(storyId: string, userEmail?: string): Promise<{
     let newLikesCount = story?.likes || 0;
 
     if (existing) {
-      // Remove like
       await supabase.from("user_likes").delete().eq("id", existing.id);
       newLikesCount = Math.max(0, newLikesCount - 1);
     } else {
-      // Add like
       await supabase.from("user_likes").insert([{ user_email: email, story_id: storyId }]);
       newLikesCount += 1;
     }
@@ -266,18 +202,13 @@ export async function toggleLike(storyId: string, userEmail?: string): Promise<{
   }
 }
 
-/* =========================================================
-   FAVORITES (SUPABASE)
-========================================================= */
-
 export async function getFavorites(userEmail?: string): Promise<string[]> {
-  const email = userEmail || getCookie("storyland_user_email");
-  if (!email) return [];
+  const email = resolveUserEmail(userEmail);
   try {
     const { data } = await supabase
       .from("favorites")
       .select("story_id")
-      .eq("user_email", email.toLowerCase().trim());
+      .eq("user_email", email);
     return (data || []).map((row) => row.story_id);
   } catch {
     return [];
@@ -285,7 +216,7 @@ export async function getFavorites(userEmail?: string): Promise<string[]> {
 }
 
 export async function toggleFavorite(storyId: string, userEmail?: string): Promise<boolean> {
-  const email = userEmail || getCookie("storyland_user_email") || "guest@storyland.com";
+  const email = resolveUserEmail(userEmail);
   try {
     const { data: existing } = await supabase
       .from("favorites")
@@ -307,17 +238,35 @@ export async function toggleFavorite(storyId: string, userEmail?: string): Promi
 }
 
 /* =========================================================
-   READING PROGRESS (SUPABASE)
+   READING PROGRESS & STATS
 ========================================================= */
+async function recordUserAchievement(badge: string, userEmail?: string) {
+  const email = resolveUserEmail(userEmail);
+  try {
+    const stats = await getUserStats(email);
+    const updatedAchievements = Array.from(new Set([...(stats.achievements || []), badge]));
+    await supabase.from("user_stats").upsert(
+      [
+        {
+          user_email: email,
+          streak: stats.streak || 1,
+          achievements: updatedAchievements,
+        },
+      ],
+      { onConflict: "user_email" }
+    );
+  } catch {
+    // Non-blocking if user_stats table constraints differ
+  }
+}
 
-export type ReadingProgress = {
-  page: number;
-  total: number;
-  completed: boolean;
-};
-
-export async function saveReadingProgress(storyId: string, page: number, total: number, userEmail?: string) {
-  const email = userEmail || getCookie("storyland_user_email") || "guest@storyland.com";
+export async function saveReadingProgress(
+  storyId: string,
+  page: number,
+  total: number,
+  userEmail?: string
+) {
+  const email = resolveUserEmail(userEmail);
   const safeTotal = Math.max(1, total);
   const safePage = Math.max(0, Math.min(page, safeTotal - 1));
   const completed = safePage >= safeTotal - 1;
@@ -336,13 +285,17 @@ export async function saveReadingProgress(storyId: string, page: number, total: 
       ],
       { onConflict: "user_email,story_id" }
     );
+
+    if (completed) {
+      await recordUserAchievement("bookworm", email);
+    }
   } catch (err) {
     console.error("Error saving progress:", err);
   }
 }
 
 export async function getContinueReading(userEmail?: string) {
-  const email = userEmail || getCookie("storyland_user_email") || "guest@storyland.com";
+  const email = resolveUserEmail(userEmail);
   try {
     const { data } = await supabase
       .from("reading_progress")
@@ -370,12 +323,8 @@ export async function getContinueReading(userEmail?: string) {
   }
 }
 
-/* =========================================================
-   USER STREAK & BADGES (SUPABASE)
-========================================================= */
-
 export async function getUserStats(userEmail?: string) {
-  const email = userEmail || getCookie("storyland_user_email") || "guest@storyland.com";
+  const email = resolveUserEmail(userEmail);
   try {
     const { data } = await supabase
       .from("user_stats")
@@ -388,9 +337,9 @@ export async function getUserStats(userEmail?: string) {
     }
     return {
       streak: data.streak || 1,
-      achievements: data.achievements || [],
+      achievements: data.achievements || ["first-story"],
     };
   } catch {
-    return { streak: 1, achievements: [] };
+    return { streak: 1, achievements: ["first-story"] };
   }
 }

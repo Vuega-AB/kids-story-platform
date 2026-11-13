@@ -11,7 +11,7 @@ import {
 } from "@/lib/store";
 import { Story } from "@/types/story";
 import Link from "next/link";
-import { Clock, Trophy, Flame, Sparkles, Star, Rocket, BookOpen, Search, Heart, Wand2 } from "lucide-react";
+import { Clock, Trophy, Flame, Sparkles, Star, Rocket, BookOpen, Search, Heart, Wand2, Coins } from "lucide-react";
 
 function KidsBackground() {
   return (
@@ -78,6 +78,7 @@ export default function Home() {
   const [streak, setStreak] = useState(1);
   const [achievements, setAchievements] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [credits, setCredits] = useState<number | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -86,6 +87,9 @@ export default function Home() {
 
       const parent = await getCurrentParent();
       const email = parent?.email;
+      if (parent) {
+        setCredits(parent.credits ?? 0);
+      }
 
       const [liked, cr, stats, favs] = await Promise.all([
         getLikedStories(email),
@@ -146,7 +150,16 @@ export default function Home() {
               <div className="text-[10px] font-black uppercase text-[#61708f]">Dream Big!</div>
             </div>
           </Link>
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+             {credits !== null && (
+               <Link
+                 href="/parents"
+                 className="flex items-center gap-1.5 rounded-2xl border-2 border-amber-300 bg-amber-100/90 px-3.5 py-2 text-xs font-black text-amber-900 shadow-sm backdrop-blur"
+               >
+                 <Coins size={16} className="text-amber-600" />
+                 <span>{credits} Sparks</span>
+               </Link>
+             )}
              <div className="hidden sm:flex items-center gap-2 rounded-2xl bg-white/50 px-4 py-2 text-sm font-black text-[#53617e]">
                <Flame size={18} className="text-orange-500" /> {streak} Day Streak!
              </div>
